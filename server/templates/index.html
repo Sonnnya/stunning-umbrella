@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Добавить пользователя</title>
+</head>
+
+<body>
+    <h1>Добавить пользователя</h1>
+    <form action="{{ url_for('add_user') }}" method="post">
+        <label for="name">Имя:</label>
+        <input type="text" id="name" name="name" required>
+        <button type="submit">Добавить</button>
+    </form>
+    <hr>
+    <h2>Список пользователей:</h2>
+    <ul>
+        {% for user in users %}
+        <li>{{ user.name }}</li>
+        {% endfor %}
+    </ul>
+</body>
+
+</html>
