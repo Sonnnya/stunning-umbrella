@@ -11,6 +11,7 @@ services:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
+    restart: always
 
   server:
     build: ./server
@@ -20,8 +21,3 @@ services:
       - DATABASE_URL=postgresql://myuser:mypassword@db:5432/mydb
     depends_on:
       - db
-
-  client:
-    build: ./client
-    depends_on:
-      - server

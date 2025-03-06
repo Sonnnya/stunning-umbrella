@@ -1,40 +1,79 @@
-from flask import Flask, request, render_template, redirect, url_for
-from sqlalchemy import create_engine, text
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
+import psycopg2
+import logging
 import os
 
 app = Flask(__name__)
+CORS(app)
 
-# Получаем URL для подключения к БД из переменных окружения
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
-engine = create_engine(DATABASE_URL)
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+
+# Подключение к базе данных
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://myuser:mypassword@db:5432/mydb")
 
 
-@app.route("/", methods=["GET"])
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
+
+
+@app.route("/")
 def index():
-    # Получаем список пользователей для отображения на странице
-    with engine.connect() as connection:
-        result = connection.execute(text("SELECT id, name FROM users"))
-        users = [{"id": row[0], "name": row[1]} for row in result.fetchall()]
-    return render_template("index.html", users=users)
+    return render_template("index.html")
 
 
-@app.route("/add", methods=["POST"])
+@app.route("/add_user", methods=["POST"])
 def add_user():
-    # Извлекаем имя из данных формы
-    name = request.form.get("name")
-    if name:
-        # Используем транзакцию для вставки данных в базу
-        with engine.begin() as connection:
-            connection.execute(
-                text("INSERT INTO users (name) VALUES (:name)"),
-                {"name": name}
-            )
-        # После добавления возвращаемся на главную страницу
-        return redirect(url_for("index"))
-    else:
-        return "Имя обязательно для заполнения", 400
+    data = request.json
+    name = data.get("name")
+
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO users (name) VALUES (%s)", (name,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    logging.info(f"User added: {name}")
+    return jsonify({"message": "User added successfully"})
+
+
+@app.route("/get_users", methods=["GET"])
+def get_users():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, name FROM users")
+    users = [{"id": row[0], "name": row[1]} for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    logging.info(f"Users retrieved: {users}")
+    return jsonify(users)
+
+
+@app.route("/delete_user", methods=["POST"])
+def delete_user():
+    data = request.json
+    user_id = data.get("id")
+
+    if not user_id:
+        return jsonify({"error": "User ID is required"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    logging.info(f"User deleted: {user_id}")
+    return jsonify({"message": "User deleted successfully"})
 
 
 if __name__ == "__main__":
-    # Запуск сервера на 0.0.0.0 для доступности из контейнера
     app.run(host="0.0.0.0", port=5000)
